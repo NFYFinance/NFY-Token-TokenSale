@@ -4,16 +4,26 @@ const Funding = artifacts.require("Funding");
 module.exports = async function (deployer, networks, accounts) {
 
     // Owner address
-    const owner = "0x112FeBab12AAA6B29BD2632E9c4f3F98B2A1fE29";
+    const owner = accounts[1];
 
     // Token details
-    const tokenName = "Non Fungible Yearn";
-    const tokenSymbol = "NFY";
-    const totalSupply = 100000; // 100,000
-    const initialLiquidity = 4000; // 4,000
-    const fundingSupply = 30000; // 30,000
-    const rewardTokens = 60000 // 60,000
-    const teamTokens = 6000 // 6,000
+    let tokenName = "NFY TOKEN";
+    let tokenSymbol = "NFY";
+
+    // Supply converted to 18 decimal places in constructor
+    let totalSupply = 100000; // 100,000
+
+    // Tokens before conversion to 18 decimals
+    let initialLiquidityBefore = 4000; // 4,000
+    let fundingSupplyBefore = 30000; // 30,000
+    let rewardTokensBefore = 60000; // 60,000
+    let teamTokensBefore = 6000; // 6,000
+
+    // Tokens after being converted to 18 decimals
+    initialLiquidity = web3.utils.toWei(initialLiquidityBefore.toString(), 'ether');
+    fundingSupply = web3.utils.toWei(fundingSupplyBefore.toString(), 'ether');
+    rewardTokens = web3.utils.toWei(rewardTokensBefore.toString(), 'ether');
+    teamTokens = web3.utils.toWei(teamTokensBefore.toString(), 'ether');
 
     // Funding details
     const fundingLength = 604800; // 7 day
@@ -24,7 +34,8 @@ module.exports = async function (deployer, networks, accounts) {
     // Days 5-7
     const tokenPrice2 = web3.utils.toWei('0.0375', 'ether'); // 0.0375 ether
 
-    const teamLockLength = 1814400 ; // 21 days
+    const rewardLockLength = 1814400; // 21 days
+    const teamLockLength = 2592000; // 30 days
 
     // Token deployment
     await deployer.deploy(NFY, tokenName, tokenSymbol, totalSupply);
@@ -32,20 +43,24 @@ module.exports = async function (deployer, networks, accounts) {
     const token = await NFY.deployed();
 
     // Funding deployment
-    await deployer.deploy(Funding, token.address, fundingLength, tokenPrice1, tokenPrice2, fundingSupply, teamTokens, teamLockLength);
+    await deployer.deploy(Funding, token.address, fundingLength, tokenPrice1, tokenPrice2, fundingSupply, teamTokens, teamLockLength, rewardTokens, rewardLockLength);
 
     const funding = await Funding.deployed()
 
+    // Transfer ownership to secured secured account
     await token.transferOwnership(owner);
     await funding.transferOwnership(owner);
 
     // Send tokens to be sold to funding smart contract
-    await token.transfer(funding.address, web3.utils.toWei(fundingSupply.toString(), 'ether'));
+    await token.transfer(funding.address, fundingSupply);
 
     // Send team tokens to funding smart contract
-    await token.transfer(funding.address, web3.utils.toWei(teamTokens.toString(), 'ether'));
+    await token.transfer(funding.address, teamTokens);
 
     // Send initial liquidity to owner so can add to UniSwap
-    await token.transfer(owner, web3.utils.toWei(initialLiquidity.toString(), 'ether'));
+    await token.transfer(owner, initialLiquidity);
+
+    // Send reward tokens to funding address
+    await token.transfer(funding.address, rewardTokens);
 
 };

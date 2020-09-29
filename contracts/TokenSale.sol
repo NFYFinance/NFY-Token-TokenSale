@@ -1,9 +1,10 @@
 pragma solidity ^0.6.10;
 import "./NFY.sol";
+import "./Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 // Contract that will keep track of funding and distribution for token sale
-contract Funding {
+contract Funding is Ownable{
     using SafeMath for uint;
 
     // Modifier that requires funding to not yet be active
@@ -30,6 +31,12 @@ contract Funding {
         _;
     }
 
+    // Modifier that requires the reward tokens to be unlocked
+    modifier rewardTokensUnlocked() {
+        require((block.timestamp > rewardUnlockTime) && rewardUnlockTime > 0, "Team's tokens are still locked");
+        _;
+    }
+
     // Struct that keeps track of buyer details
     struct Buyer {
         address investor;
@@ -40,9 +47,6 @@ contract Funding {
 
     // Mapping that will link an address to their investment
     mapping(address => Buyer) buyers;
-
-    // Variable that will keep track of the owner of the contract
-    address owner;
 
     // Variable that will keep track of the ending time of the funding round
     uint public endFunding;
@@ -62,25 +66,23 @@ contract Funding {
     // Variable that will keep track of the tokens available to buy
     uint public tokensAvailable;
 
-    // Variable that will keep track of the team's tokens
+    // Team related variables
     uint public teamTokens;
-
-    // Variable that will keep track of the time the team can withdraw their tokens
     uint public teamUnlockTime;
-
-    // Variable that will keep track of how long team's tokens will be locked for
     uint public teamLockLength;
-
-    // Bool that keeps track if team withdrew their tokens
     bool public teamWithdraw;
+
+    // Reward related variables
+    uint public rewardTokens;
+    uint public rewardUnlockTime;
+    uint public rewardLockLength;
+    bool public rewardWithdraw;
 
     // Variable that will store the token contract
     NFY public token;
 
-    // Variable that will keep track of the tokens sold
     uint public tokensSold;
 
-    // Variable that keeps track of ETH raised
     uint public ethRaised;
 
     bool public softCapMet = false;
@@ -88,22 +90,23 @@ contract Funding {
     // Variable that will keep track of the contract address
     address public contractAddress = address(this);
 
-    // Event that will be emitted when a purchase has been executed
     event PurchaseExecuted(uint _etherSpent, uint _tokensPurchased, address _purchaser);
-
-    // Event that will be emitted when a investor withdraws tokens from fund
+    
     event ClaimExecuted(uint _tokensSent, address _receiver);
 
-    // Event that will emit how many tokens are on sale
     event TokensOnSale(uint _tokensOnSale);
 
-    // Event that will emit how many tokens are for the team
     event AmountOfTeamTokens(uint _teamTokens);
 
-    // Event that will emit when team withdraws their tokens
     event TeamWithdraw(uint _tokensSent, address _receiver);
 
     event SoftCapMet(string _msg, bool _softCapMet);
+
+    event SaleStarted(string _msg);
+
+    event RewardTokensTransferred(address _sentTo, uint _amount);
+
+    event RaisedEthereumWithdrawn(address _sentTo, uint _amount);
 
     // Constructor will set:
     // The address of token being sold
@@ -111,7 +114,7 @@ contract Funding {
     // Token Price
     // Tokens that are initially available
     // The tokens allotted  to team
-    constructor( address _tokenAddress, uint _saleLength, uint _tokenPrice1, uint _tokenPrice2, uint _tokensAvailable, uint _teamTokens, uint _teamLockLength) Ownable() public {
+    constructor( address _tokenAddress, uint _saleLength, uint _tokenPrice1, uint _tokenPrice2, uint _tokensAvailable, uint _teamTokens, uint _teamLockLength, uint _rewardTokens, uint _rewardLockLength) Ownable() public {
         // Variable 'token' is the address of token being sold
         token = NFY(_tokenAddress);
 
@@ -136,8 +139,14 @@ contract Funding {
         // Set the amount of tokens the team will receive
         teamTokens = _teamTokens;
 
-        // Set the length  the team's tokens will be locked
+        // Set the length the team's tokens will be locked
         teamLockLength = _teamLockLength;
+
+        // Set reward tokens delegated
+        rewardTokens = _rewardTokens;
+
+        // Set length reward tokens will be locked
+        rewardLockLength = _rewardLockLength;
 
         // Emit how many tokens are on sale and how many tokens are for team
         emit TokensOnSale(_tokensAvailable);
@@ -154,18 +163,25 @@ contract Funding {
 
         // Variable set to the current timestamp of block + length of team's tokens locked
         teamUnlockTime = block.timestamp + teamLockLength;
+
+        // Variable set to the current timestamp of block + length of reward's tokens locked
+        rewardUnlockTime = block.timestamp + rewardLockLength;
+
+        emit SaleStarted("Sale has started");
     }
 
     // Function investor will call to buy tokens
     function buyTokens() public fundingActive() payable {
+        uint _tokenAmount;
 
-        if(block.timestamp.sub(startFunding) <= 345600 seconds){
-            // Amount of tokens is the amount of ether sent / price
-            uint _tokenAmount = msg.value.div(tokenPrice1);
+        // Days 1-4 price
+        if(block.timestamp.sub(startTime) <= 345600 seconds){
+            _tokenAmount = msg.value.div(tokenPrice1) * 10 ** 18 ;
         }
 
+        // Days 5-7 price
         else{
-            uint _tokenAmount = msg.value.div(tokenPrice2);
+            _tokenAmount = msg.value.div(tokenPrice2) * 10 ** 18 ;
         }
 
         // Require enough tokens are left for investor to buy
@@ -188,7 +204,7 @@ contract Funding {
         buyers[msg.sender].investor = msg.sender;
         buyers[msg.sender].tokensPurchased = buyers[msg.sender].tokensPurchased.add(_tokenAmount);
         buyers[msg.sender].tokensClaimed = false;
-        buyers[msg.sender].ethSent = buyers[msg.sender].ethSent.add(msg.sender);
+        buyers[msg.sender].ethSent = buyers[msg.sender].ethSent.add(msg.value);
 
         ethRaised = ethRaised.add(msg.value);
 
@@ -258,11 +274,25 @@ contract Funding {
     }
 
     // Function that will allow the owner to withdraw ethereum raised after funding is over
-    function withdrawEth(uint amount) external onlyOwner() fundingOver() {
+    function withdrawEth() external onlyOwner() fundingOver() {
         // Require that soft cap of 150 ETH has been met and no buy back
         require(softCapMet == true);
 
+        emit RaisedEthereumWithdrawn(msg.sender, address(this).balance);
+
         // Transfer the passed in amount ether to the msg.sender (owner)
-        msg.sender.transfer(amount);
+        msg.sender.transfer(address(this).balance);
+    }
+
+    // Transfer rewards tokens to vault once it is deployed
+    function transferRewardTokens(address _to) public onlyOwner() rewardTokensUnlocked() {
+        // Require that soft cap of 150 ETH has been met and no buy back
+        require(softCapMet == true);
+
+        uint _rewardTokens = rewardTokens;
+        rewardTokens = 0;
+
+        token.transfer(_to, _rewardTokens);
+        emit RewardTokensTransferred(_to, _rewardTokens);
     }
 }
