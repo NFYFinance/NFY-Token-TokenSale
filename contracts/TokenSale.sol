@@ -91,7 +91,7 @@ contract Funding is Ownable{
     address public contractAddress = address(this);
 
     event PurchaseExecuted(uint _etherSpent, uint _tokensPurchased, address _purchaser);
-    
+
     event ClaimExecuted(uint _tokensSent, address _receiver);
 
     event TokensOnSale(uint _tokensOnSale);
@@ -159,13 +159,13 @@ contract Funding is Ownable{
         startTime = block.timestamp;
 
         // Variable set to the current timestamp of block + length of funding round
-        endFunding = block.timestamp + saleLength;
+        endFunding = block.timestamp.add(saleLength);
 
         // Variable set to the current timestamp of block + length of team's tokens locked
-        teamUnlockTime = block.timestamp + teamLockLength;
+        teamUnlockTime = block.timestamp.add(teamLockLength);
 
         // Variable set to the current timestamp of block + length of reward's tokens locked
-        rewardUnlockTime = block.timestamp + rewardLockLength;
+        rewardUnlockTime = block.timestamp.add(rewardLockLength);
 
         emit SaleStarted("Sale has started");
     }
@@ -211,16 +211,17 @@ contract Funding is Ownable{
         // Emit event that shows details of the current purchase
         emit PurchaseExecuted(msg.value, _tokenAmount, msg.sender);
 
-        // If ETH raised is over 150 and soft cap has not been met yet
-        if(ethRaised >= 150 ether && softCapMet == false) {
+        // If ETH raised is over 100 and soft cap has not been met yet
+        if(ethRaised >= 100 ether && softCapMet == false) {
             softCapMet = true;
             emit SoftCapMet("Soft cap has been met", softCapMet);
         }
+
     }
 
     // Function that user will call to claim their purchased tokens once funding is over
     function claimTokens() external fundingOver()  {
-        // Require that soft cap of 150 ETH has been met and no buy back
+        // Require that soft cap of 100 ETH has been met and no buy back
         require(softCapMet == true);
 
         // Variable 'buyer' of struct 'Buyer' will be used to access the buyers mapping
@@ -257,7 +258,7 @@ contract Funding is Ownable{
 
     // Function that will allow the team to withdraw their tokens
     function withdrawTeamTokens() external onlyOwner() teamTokensUnlocked() {
-        // Require that soft cap of 150 ETH has been met and no buy back
+        // Require that soft cap of 100 ETH has been met and no buy back
         require(softCapMet == true);
 
         // Require that team has not withdrawn their tokens
@@ -275,7 +276,7 @@ contract Funding is Ownable{
 
     // Function that will allow the owner to withdraw ethereum raised after funding is over
     function withdrawEth() external onlyOwner() fundingOver() {
-        // Require that soft cap of 150 ETH has been met and no buy back
+        // Require that soft cap of 100 ETH has been met and no buy back
         require(softCapMet == true);
 
         emit RaisedEthereumWithdrawn(msg.sender, address(this).balance);
@@ -286,7 +287,7 @@ contract Funding is Ownable{
 
     // Transfer rewards tokens to vault once it is deployed
     function transferRewardTokens(address _to) public onlyOwner() rewardTokensUnlocked() {
-        // Require that soft cap of 150 ETH has been met and no buy back
+        // Require that soft cap of 100 ETH has been met and no buy back
         require(softCapMet == true);
 
         uint _rewardTokens = rewardTokens;
