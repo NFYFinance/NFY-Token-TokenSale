@@ -21,7 +21,7 @@ contract Funding is Ownable{
 
     // Modifier that requires the funding to be over
     modifier fundingOver() {
-        require((block.timestamp > endFunding || tokensAvailable == 0) && endFunding > 0, "Funding not over");
+        require((block.timestamp > endFunding) && endFunding > 0, "Funding not over");
         _;
     }
 
@@ -83,6 +83,8 @@ contract Funding is Ownable{
 
     uint public tokensSold;
 
+    uint public softCap;
+
     uint public ethRaised;
 
     bool public softCapMet = false;
@@ -114,7 +116,7 @@ contract Funding is Ownable{
     // Token Price
     // Tokens that are initially available
     // The tokens allotted  to team
-    constructor( address _tokenAddress, uint _saleLength, uint _tokenPrice1, uint _tokenPrice2, uint _tokensAvailable, uint _teamTokens, uint _teamLockLength, uint _rewardTokens, uint _rewardLockLength) Ownable() public {
+    constructor( address _tokenAddress, uint _saleLength, uint _tokenPrice1, uint _tokenPrice2, uint _softCap, uint _tokensAvailable, uint _teamTokens, uint _teamLockLength, uint _rewardTokens, uint _rewardLockLength) Ownable() public {
         // Variable 'token' is the address of token being sold
         token = NFY(_tokenAddress);
 
@@ -132,6 +134,9 @@ contract Funding is Ownable{
 
         // Set the second token price as price passed in
         tokenPrice2 = _tokenPrice2;
+
+        // Set the soft cap will be 100 ETH
+        softCap = _softCap;
 
         // Set the initially available tokens as the amount passed in
         tokensAvailable = _tokensAvailable;
@@ -172,6 +177,7 @@ contract Funding is Ownable{
 
     // Function investor will call to buy tokens
     function buyTokens() public fundingActive() payable {
+        require(msg.value >= 0.1 ether && msg.value <= 50 ether, "Outside investing conditions");
         uint _tokenAmount;
 
         // Days 1-4 price
@@ -212,7 +218,7 @@ contract Funding is Ownable{
         emit PurchaseExecuted(msg.value, _tokenAmount, msg.sender);
 
         // If ETH raised is over 100 and soft cap has not been met yet
-        if(ethRaised >= 100 ether && softCapMet == false) {
+        if(ethRaised >= softCap && softCapMet == false) {
             softCapMet = true;
             emit SoftCapMet("Soft cap has been met", softCapMet);
         }
@@ -276,6 +282,8 @@ contract Funding is Ownable{
 
     // Function that will allow the owner to withdraw ethereum raised after funding is over
     function withdrawEth() external onlyOwner() fundingOver() {
+        require(address(this).balance > 0, "ETH already withdrawn");
+
         // Require that soft cap of 100 ETH has been met and no buy back
         require(softCapMet == true);
 
@@ -287,6 +295,8 @@ contract Funding is Ownable{
 
     // Transfer rewards tokens to vault once it is deployed
     function transferRewardTokens(address _to) public onlyOwner() rewardTokensUnlocked() {
+        require(rewardTokens > 0, "Reward tokens already sent");
+
         // Require that soft cap of 100 ETH has been met and no buy back
         require(softCapMet == true);
 
@@ -295,5 +305,11 @@ contract Funding is Ownable{
 
         token.transfer(_to, _rewardTokens);
         emit RewardTokensTransferred(_to, _rewardTokens);
+    }
+
+    // Function that will burn unsold tokens
+    function burnUnSoldTokens() public onlyOwner() fundingOver() {
+        require(tokensAvailable > 0, "All tokens have been sold!");
+        token.transfer(0x000000000000000000000000000000000000dEaD, tokensAvailable);
     }
 }

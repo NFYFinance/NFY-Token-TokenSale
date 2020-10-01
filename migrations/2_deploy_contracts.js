@@ -7,7 +7,7 @@ module.exports = async function (deployer, networks, accounts) {
     const owner = accounts[1];
 
     // Token details
-    let tokenName = "NFY TOKEN";
+    let tokenName = "Non-Fungible Yearn";
     let tokenSymbol = "NFY";
 
     // Supply converted to 18 decimal places in constructor
@@ -18,12 +18,14 @@ module.exports = async function (deployer, networks, accounts) {
     let fundingSupplyBefore = 30000; // 30,000
     let rewardTokensBefore = 60000; // 60,000
     let teamTokensBefore = 6000; // 6,000
+    let softCapBefore = 100; // 100 ETH
 
     // Tokens after being converted to 18 decimals
     initialLiquidity = web3.utils.toWei(initialLiquidityBefore.toString(), 'ether');
     fundingSupply = web3.utils.toWei(fundingSupplyBefore.toString(), 'ether');
     rewardTokens = web3.utils.toWei(rewardTokensBefore.toString(), 'ether');
     teamTokens = web3.utils.toWei(teamTokensBefore.toString(), 'ether');
+    softCap = web3.utils.toWei(softCapBefore.toString(), 'ether');
 
     // Funding details
     const fundingLength = 604800; // 7 day
@@ -43,7 +45,7 @@ module.exports = async function (deployer, networks, accounts) {
     const token = await NFY.deployed();
 
     // Funding deployment
-    await deployer.deploy(Funding, token.address, fundingLength, tokenPrice1, tokenPrice2, fundingSupply, teamTokens, teamLockLength, rewardTokens, rewardLockLength);
+    await deployer.deploy(Funding, token.address, fundingLength, tokenPrice1, tokenPrice2, softCap, fundingSupply, teamTokens, teamLockLength, rewardTokens, rewardLockLength);
 
     const funding = await Funding.deployed()
 
