@@ -4,7 +4,7 @@ const Funding = artifacts.require("Funding");
 module.exports = async function (deployer, networks, accounts) {
 
     // Owner address
-    const owner = "0x112FeBab12AAA6B29BD2632E9c4f3F98B2A1fE29";
+    const owner = "0x5530fb19c22B1B410708b0A9fD230c714cbA12Ed";
 
     // Token details
     let tokenName = "Non-Fungible Yearn";

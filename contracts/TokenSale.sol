@@ -4,7 +4,7 @@ import "./Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 // Contract that will keep track of funding and distribution for token sale
-contract Funding is Ownable{
+contract Funding is Ownable {
     using SafeMath for uint;
 
     // Modifier that requires funding to not yet be active
@@ -21,7 +21,7 @@ contract Funding is Ownable{
 
     // Modifier that requires the funding to be over
     modifier fundingOver() {
-        require((block.timestamp > endFunding) && endFunding > 0, "Funding not over");
+        require((block.timestamp > endFunding || ethRaised == 900 ether) && endFunding > 0, "Funding not over");
         _;
     }
 
@@ -161,7 +161,7 @@ contract Funding is Ownable{
 
     // Function that will allow user to see how many tokens they have purchased
     function getTokensPurchased() public view returns(uint _tokensPurchased) {
-        return buyers[msg.sender].tokensPurchased;
+        return buyers[_msgSender()].tokensPurchased;
     }
 
     // Call function to start the funding round.. Once called timer will start
@@ -215,22 +215,21 @@ contract Funding is Ownable{
         // Number of tokens purchased
         // That buyer has not claimed tokens
         // Total number of ether sent
-        buyers[msg.sender].investor = msg.sender;
-        buyers[msg.sender].tokensPurchased = buyers[msg.sender].tokensPurchased.add(_tokenAmount);
-        buyers[msg.sender].tokensClaimed = false;
-        buyers[msg.sender].ethSent = buyers[msg.sender].ethSent.add(msg.value);
+        buyers[_msgSender()].investor = _msgSender();
+        buyers[_msgSender()].tokensPurchased = buyers[_msgSender()].tokensPurchased.add(_tokenAmount);
+        buyers[_msgSender()].tokensClaimed = false;
+        buyers[_msgSender()].ethSent = buyers[_msgSender()].ethSent.add(msg.value);
 
         ethRaised = ethRaised.add(msg.value);
 
         // Emit event that shows details of the current purchase
-        emit PurchaseExecuted(msg.value, _tokenAmount, msg.sender);
+        emit PurchaseExecuted(msg.value, _tokenAmount, _msgSender());
 
         // If ETH raised is over 100 and soft cap has not been met yet
         if(ethRaised >= softCap && softCapMet == false) {
             softCapMet = true;
             emit SoftCapMet("Soft cap has been met", softCapMet);
         }
-
     }
 
     // Function that user will call to claim their purchased tokens once funding is over
@@ -239,7 +238,7 @@ contract Funding is Ownable{
         require(softCapMet == true);
 
         // Variable 'buyer' of struct 'Buyer' will be used to access the buyers mapping
-        Buyer storage buyer = buyers[msg.sender];
+        Buyer storage buyer = buyers[_msgSender()];
 
         // Require that the current msg.sender has invested
         require(buyer.tokensPurchased > 0, "No investment");
@@ -254,20 +253,20 @@ contract Funding is Ownable{
         token.transfer(buyer.investor, buyer.tokensPurchased);
 
         // Emit event that confirms details of current claim
-        emit ClaimExecuted(buyer.tokensPurchased, msg.sender);
+        emit ClaimExecuted(buyer.tokensPurchased, _msgSender());
     }
 
     // Function investors will call if soft cap is not raised
     function investorGetBackEth() external fundingOver() {
         // Require soft cap was not met, investors get ETH back
         require(softCapMet == false, "Soft cap was met");
-        require(buyers[msg.sender].ethSent > 0, "Did not invest or already claimed");
+        require(buyers[_msgSender()].ethSent > 0, "Did not invest or already claimed");
 
-        uint withdrawAmount = buyers[msg.sender].ethSent;
+        uint withdrawAmount = buyers[_msgSender()].ethSent;
 
-        buyers[msg.sender].ethSent = 0;
+        buyers[_msgSender()].ethSent = 0;
 
-        msg.sender.transfer(withdrawAmount);
+        _msgSender().transfer(withdrawAmount);
     }
 
     // Function that will allow the team to withdraw their tokens
@@ -279,13 +278,13 @@ contract Funding is Ownable{
         require(teamWithdraw == false, "Team has withdrawn their tokens");
 
         // Transfer team tokens to msg.sender (owner)
-        token.transfer(msg.sender, teamTokens);
+        token.transfer(_msgSender(), teamTokens);
 
         // Set bool that tracks if team has withdrawn tokens to true
         teamWithdraw = true;
 
         // Emit event that confirms team has withdrawn their tokens
-        emit TeamWithdraw(teamTokens, msg.sender);
+        emit TeamWithdraw(teamTokens, _msgSender());
     }
 
     // Function that will allow the owner to withdraw ethereum raised after funding is over
@@ -295,10 +294,10 @@ contract Funding is Ownable{
         // Require that soft cap of 100 ETH has been met and no buy back
         require(softCapMet == true);
 
-        emit RaisedEthereumWithdrawn(msg.sender, address(this).balance);
+        emit RaisedEthereumWithdrawn(_msgSender(), address(this).balance);
 
         // Transfer the passed in amount ether to the msg.sender (owner)
-        msg.sender.transfer(address(this).balance);
+        _msgSender().transfer(address(this).balance);
     }
 
     // Transfer rewards tokens to vault once it is deployed
