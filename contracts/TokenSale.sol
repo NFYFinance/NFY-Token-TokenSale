@@ -69,6 +69,7 @@ contract Funding is Ownable{
     // Team related variables
     uint public teamTokens;
     uint public teamUnlockTime;
+
     uint public teamLockLength;
     bool public teamWithdraw;
 
@@ -156,7 +157,11 @@ contract Funding is Ownable{
         // Emit how many tokens are on sale and how many tokens are for team
         emit TokensOnSale(_tokensAvailable);
         emit AmountOfTeamTokens(_teamTokens);
+    }
 
+    // Function that will allow user to see how many tokens they have purchased
+    function getTokensPurchased() public view returns(uint _tokensPurchased) {
+        return buyers[msg.sender].tokensPurchased;
     }
 
     // Call function to start the funding round.. Once called timer will start
@@ -178,6 +183,9 @@ contract Funding is Ownable{
     // Function investor will call to buy tokens
     function buyTokens() public fundingActive() payable {
         require(msg.value >= 0.1 ether && msg.value <= 50 ether, "Outside investing conditions");
+
+        // Require transaction will not go over hard cap of 900 ETH
+        require(ethRaised.add(msg.value) <= 900 ether, "Hard Cap off 900 ETH has been reached");
         uint _tokenAmount;
 
         // Days 1-4 price

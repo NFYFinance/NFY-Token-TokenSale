@@ -4,7 +4,7 @@ const Funding = artifacts.require("Funding");
 module.exports = async function (deployer, networks, accounts) {
 
     // Owner address
-    const owner = accounts[1];
+    const owner = "0x112FeBab12AAA6B29BD2632E9c4f3F98B2A1fE29";
 
     // Token details
     let tokenName = "Non-Fungible Yearn";
@@ -36,7 +36,7 @@ module.exports = async function (deployer, networks, accounts) {
     // Days 5-7
     const tokenPrice2 = web3.utils.toWei('0.0375', 'ether'); // 0.0375 ether
 
-    const rewardLockLength = 1814400; // 21 days
+    const rewardLockLength = 1209600 ; // 14 days
     const teamLockLength = 2592000; // 30 days
 
     // Token deployment
